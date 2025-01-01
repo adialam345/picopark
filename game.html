@@ -29,9 +29,76 @@
             left: 0%;
             z-index: 10;
         }
+        #mobileControls {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            text-align: center;
+        }
+        .control-button {
+            width: 60px;
+            height: 60px;
+            margin: 5px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px solid #fff;
+            font-size: 24px;
+            touch-action: none;
+            user-select: none;
+        }
+        #leftBtn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+        }
+        #rightBtn {
+            position: fixed;
+            bottom: 20px;
+            left: 100px;
+        }
+        #jumpBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+        }
+        #orientationWarning {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            padding-top: 40%;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        }
     </style>
 </head>
 <body>
+    <div id="orientationWarning">
+        Please rotate your device to landscape mode to play the game.
+    </div>
+
+    <canvas id="c" style="display: none;"></canvas>
+    <div class="overlay">
+        <a href="./index.html">Back to Home</a> | 
+        <a style="display: none;" id="restartLevel" href="#"  onClick="(function(){
+            mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name)
+            return false;
+        })();return false;">Restart Level</a>
+    </div>
+
+    <div id="mobileControls">
+        <button id="leftBtn" class="control-button">←</button>
+        <button id="rightBtn" class="control-button">→</button>
+        <button id="jumpBtn" class="control-button">↑</button>
+    </div>
 
     <script>
         var url = location.href,
@@ -45,14 +112,6 @@
         urlData = data
     </script>
 
-    <canvas id="c" style="display: none;"></canvas>
-    <div class="overlay">
-        <a href="./index.html">Back to Home</a> | 
-        <a style="display: none;" id="restartLevel" href="#"  onClick="(function(){
-            mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name)
-            return false;
-        })();return false;">Restart Level</a>
-    </div>
     <script src="./src/multiplayer.js"></script>
     <script src="./src/buttons.js"></script>
     <script src="./src/door.js"></script>
@@ -198,6 +257,166 @@
                             }
 }
        
+    </script>
+
+    <script>
+        // Check if device is mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Orientation check
+        function checkOrientation() {
+            if (isMobile) {
+                const warning = document.getElementById('orientationWarning');
+                const controls = document.getElementById('mobileControls');
+                
+                if (window.innerHeight > window.innerWidth) {
+                    warning.style.display = 'block';
+                    controls.style.display = 'none';
+                } else {
+                    warning.style.display = 'none';
+                    if (mainGame && mainGame.running) {
+                        controls.style.display = 'block';
+                    }
+                }
+            }
+        }
+
+        function showMobileControls() {
+            if (isMobile && window.innerHeight < window.innerWidth) {
+                console.log("Showing mobile controls");
+                document.getElementById('mobileControls').style.display = 'block';
+            }
+        }
+
+        // Listen for orientation changes
+        window.addEventListener('resize', checkOrientation);
+        window.addEventListener('orientationchange', checkOrientation);
+
+        // Initial check
+        checkOrientation();
+
+        // Mobile controls setup
+        if (isMobile) {
+            const leftBtn = document.getElementById('leftBtn');
+            const rightBtn = document.getElementById('rightBtn');
+            const jumpBtn = document.getElementById('jumpBtn');
+            let isJumping = false;
+
+            // Touch events for left button
+            leftBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowleft'] = true;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowleft', true);
+                    }
+                }
+            });
+
+            leftBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowleft'] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowleft', false);
+                    }
+                }
+            });
+
+            // Touch events for right button
+            rightBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowright'] = true;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowright', true);
+                    }
+                }
+            });
+
+            rightBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowright'] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowright', false);
+                    }
+                }
+            });
+
+            // Touch events for jump button with debounce
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running && !isJumping) {
+                    isJumping = true;
+                    keys['arrowup'] = true;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowup', true);
+                    }
+                    
+                    // Force key up after a short delay
+                    setTimeout(() => {
+                        keys['arrowup'] = false;
+                        if (window.clientConnection) {
+                            window.clientConnection.updateKey('arrowup', false);
+                        }
+                    }, 100);
+                }
+            });
+
+            jumpBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowup'] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowup', false);
+                    }
+                    // Reset jump state after a short delay
+                    setTimeout(() => {
+                        isJumping = false;
+                    }, 200);
+                }
+            });
+
+            // Add touchcancel handlers for safety
+            jumpBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    keys['arrowup'] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowup', false);
+                    }
+                    setTimeout(() => {
+                        isJumping = false;
+                    }, 200);
+                }
+            });
+        }
+
+        // Modify the existing startGame functions
+        const originalStartMainGame = window.startMainGame;
+        window.startMainGame = function() {
+            if (originalStartMainGame) originalStartMainGame();
+            mainGame.testInit();
+            mainGame.initRender();
+            showMobileControls();
+        };
+
+        const originalStartGame = window.startGame;
+        window.startGame = function() {
+            console.log("Starting game...");
+            if (originalStartGame) originalStartGame();
+            showMobileControls();
+            
+            // Add observer to check when game is actually running
+            const checkRunning = setInterval(() => {
+                if (mainGame && mainGame.running) {
+                    console.log("Game is running, showing controls");
+                    showMobileControls();
+                    clearInterval(checkRunning);
+                }
+            }, 100);
+        };
     </script>
 
 </body>
