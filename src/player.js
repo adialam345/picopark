@@ -303,25 +303,52 @@ class Player {
     }
 
     moveHor(dir, multi=false) {
-        var speed = 2.75*this.game.deltaTime
-        Matter.Body.setPosition(this.body, v(this.body.position.x+(dir*speed),this.body.position.y))
-        if (this.testPlayerCollision()) {
+        // Adjust speed based on device type and movement type
+        const baseSpeed = 0.75;
+        let speedMultiplier;
+        
+        if (window.isMobile) {
+            // Get current time
+            const currentTime = Date.now();
             
-            Matter.Body.setPosition(this.body, v(this.body.position.x-(dir*speed),this.body.position.y))
+            // Initialize or update button state
+            if (dir !== this.lastMoveDir) {
+                // Direction changed or new press
+                this.lastMoveTime = currentTime;
+                this.lastMoveDir = dir;
+            }
+            
+            // Calculate hold duration
+            const holdDuration = currentTime - this.lastMoveTime;
+            
+            // Use higher speed if holding, reduced speed for single taps
+            if (holdDuration > 100) {
+                speedMultiplier = 3.8; // Fast movement for hold
+            } else {
+                speedMultiplier = 0.1
+                ; // Shorter steps for taps
+            }
+        } else {
+            speedMultiplier = 2.2; // Normal desktop speed
+        }
+        
+        var speed = baseSpeed * speedMultiplier * this.game.deltaTime;
+
+        Matter.Body.setPosition(this.body, v(this.body.position.x+(dir*speed),this.body.position.y));
+        if (this.testPlayerCollision()) {
+            Matter.Body.setPosition(this.body, v(this.body.position.x-(dir*speed),this.body.position.y));
         }
         if (dir!=this.blockingDirection) {
-            var playersOnTop = this.findPlayerGroundDectors()
+            var playersOnTop = this.findPlayerGroundDectors();
             for (let i = 0; i < playersOnTop.length; i++) {
-                var bodyIs = (playersOnTop[i].bodyA.label!="Rectangle Body")?"bodyA":"bodyB"
+                var bodyIs = (playersOnTop[i].bodyA.label!="Rectangle Body")?"bodyA":"bodyB";
                 var player = playersOnTop[i][bodyIs].player;
-                if (!multi) player.moveHor(dir, true)
-                //player.moveHor(dir*diff)
+                if (!multi) player.moveHor(dir, true);
             }
         }
         
-        //Matter.Body.setVelocity(this.body, v((dir*speed)+this.body.velocity.x,this.body.velocity.y))
-        if (!multi) this.direction = Math.sign(dir)
-        this.updatePlayerParts()
+        if (!multi) this.direction = Math.sign(dir);
+        this.updatePlayerParts();
     }
     findPlayerGroundDectors() {
         var players = this.game.players,
@@ -369,9 +396,19 @@ class Player {
     }
     jump(str=1) {
         if (this.ready) {
-            this.unReady()
-        } else if (this.onGround()) Matter.Body.setVelocity(this.body, v(this.body.velocity.x,-13*str))
-        //this.updatePlayerParts()
+            this.unReady();
+        } else if (this.onGround()) {
+            // Increase initial jump velocity for higher jump
+            const jumpVelocity = -4 * str;
+            
+            // Preserve horizontal momentum while jumping
+            const horizontalVelocity = this.body.velocity.x * 1.2; // Slight horizontal boost
+            
+            Matter.Body.setVelocity(this.body, v(horizontalVelocity, jumpVelocity));
+            
+            // Add a small upward force for better jump feel
+            Matter.Body.applyForce(this.body, this.body.position, v(0, -0.05));
+        }
     }
 
     updatePlayerParts() {

@@ -101,17 +101,113 @@
     </div>
 
     <script>
+        // Define isMobile globally
+        window.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isMobile = window.isMobile;
+        let controlsVisible = false;
+        
+        // Ensure keys object exists globally
+        window.keys = window.keys || {};
+
+        // URL parsing
         var url = location.href,
-            urlData = url.split("?").splice(-1,1)
+            urlData = url.split("?").splice(-1,1);
 
-        data = {}
+        data = {};
         urlData.forEach((e)=>{
-            data[e.split("=")[0]] = e.split("=")[1]
-        })
+            data[e.split("=")[0]] = e.split("=")[1];
+        });
 
-        urlData = data
+        urlData = data;
+
+        // Orientation check functions
+        function checkOrientation() {
+            if (isMobile) {
+                const warning = document.getElementById('orientationWarning');
+                const controls = document.getElementById('mobileControls');
+                
+                if (window.innerHeight > window.innerWidth) {
+                    warning.style.display = 'block';
+                    controls.style.display = 'none';
+                    controlsVisible = false;
+                } else {
+                    warning.style.display = 'none';
+                    // Only show controls if game is initialized and running
+                    if (window.mainGame && window.mainGame.running) {
+                        controls.style.display = 'block';
+                        controlsVisible = true;
+                    }
+                }
+            }
+        }
+
+        function showMobileControls() {
+            if (isMobile && window.innerHeight < window.innerWidth && window.mainGame && window.mainGame.running) {
+                console.log("Showing mobile controls");
+                const controls = document.getElementById('mobileControls');
+                controls.style.display = 'block';
+                controlsVisible = true;
+            }
+        }
+
+        function checkAndShowControls() {
+            // Only check if mainGame exists
+            if (typeof window.mainGame !== 'undefined' && window.mainGame) {
+                if (isMobile && window.mainGame.running && !controlsVisible && window.innerHeight < window.innerWidth) {
+                    showMobileControls();
+                }
+            }
+        }
+
+        // Initial orientation check (just for warning)
+        function initialOrientationCheck() {
+            if (isMobile) {
+                const warning = document.getElementById('orientationWarning');
+                if (window.innerHeight > window.innerWidth) {
+                    warning.style.display = 'block';
+                } else {
+                    warning.style.display = 'none';
+                }
+            }
+        }
+
+        // Listen for orientation changes
+        window.addEventListener('resize', checkOrientation);
+        window.addEventListener('orientationchange', checkOrientation);
+
+        // Do initial orientation check (just for warning)
+        initialOrientationCheck();
+
+        // Start checking for controls only after game might be initialized
+        setTimeout(() => {
+            // Regular interval to ensure controls are visible when needed
+            setInterval(checkAndShowControls, 1000);
+        }, 2000); // Wait 2 seconds before starting the interval
+
+        // Store original game functions after they are defined
+        const originalStartGame = window.startGame;
+        window.startGame = function() {
+            console.log("Starting game...");
+            if (originalStartGame) originalStartGame();
+            
+            // Show mobile controls if needed
+            if (isMobile && window.mainGame && window.mainGame.running) {
+                setTimeout(showMobileControls, 500);
+            }
+        };
+
+        // Override startMainGame
+        window.startMainGame = function() {
+            if (gameStartFunctions.startMainGame) gameStartFunctions.startMainGame();
+            if (window.mainGame) {
+                mainGame.testInit();
+                mainGame.initRender();
+                showMobileControls();
+            }
+        };
     </script>
 
+    <!-- Load all game scripts -->
     <script src="./src/multiplayer.js"></script>
     <script src="./src/buttons.js"></script>
     <script src="./src/door.js"></script>
@@ -187,115 +283,98 @@
     </div>
 
     <script>
-        window.localfile = location.protocol=="file:"
+        window.localfile = location.protocol=="file:";
+        
+        // Define core game functions first
+        function startMainGame() {
+            mainGame.testInit();
+            mainGame.initRender();
+        }
+
+        function startGame() {
+            mainGame.testInit();
+            mainGame.initRender();
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("c").style.display = "";
+            mainGame.running = true;
+        }
+        
         function initGame() {
-            window.mainGame = new Game()
+            window.mainGame = new Game();
+
+            // Set up controls based on device type
+            const controls = ["arrowleft", "arrowright", "arrowup", "arrowdown"];
 
             var player1 = mainGame.playerhandler.addPlayer({
-            controls:["arrowleft","arrowright","arrowup","arrowdown"],
-            keys:keys,
-        }) 
+                controls: controls,
+                keys: window.keys || {},
+            });
 
-            window.hostConnection;window.clientConnection
-            if (urlData.host) {hostConnection = new Host(mainGame);hostConnection.init()}
-            if (urlData.join) {
-                clientConnection = new Client(mainGame,player1);clientConnection.init(urlData.join)
-                document.getElementById("restartLevel").style.display = "none"
+            window.hostConnection;
+            window.clientConnection;
+            if (urlData.host) {
+                hostConnection = new Host(mainGame);
+                hostConnection.init();
             }
-            if (!urlData.host&&!urlData.join) startGame()
+            if (urlData.join) {
+                clientConnection = new Client(mainGame, player1);
+                clientConnection.init(urlData.join);
+                document.getElementById("restartLevel").style.display = "none";
+            }
+            if (!urlData.host && !urlData.join) startGame();
 
+            // More frequent updates for mobile
+            const updateInterval = isMobile ? 16 : 10; // ~60fps for mobile
 
             setInterval(() => {
-                if (window.hostConnection) hostConnection.updateClients()
-                if (window.clientConnection) clientConnection.updateHost()
-
-            }, 10);
+                if (window.hostConnection) hostConnection.updateClients();
+                if (window.clientConnection) clientConnection.updateHost();
+            }, updateInterval);
 
             setInterval(() => {
-                mainGame.players.forEach((e)=>{if(!e.onlinePlayer) e.updateKeys(keys)})
+                mainGame.players.forEach((e) => {
+                    if (!e.onlinePlayer) e.updateKeys(window.keys || {});
+                });
             }, 5);
-            
-        }
-        function startMainGame() {
-            mainGame.testInit()
-            mainGame.initRender()
         }
 
-       
-
-
-        window.onload=()=>{
-            _loadFont("squareforced")
+        // Initialize game when window loads
+        window.onload = () => {
+            _loadFont("squareforced");
 
             if (urlData.host) {
-                document.getElementById("host").style.display = ""
+                document.getElementById("host").style.display = "";
             } else if (urlData.join) {
-                document.getElementById("join").style.display = ""
+                document.getElementById("join").style.display = "";
             }
 
-            initGame()
+            initGame();
 
-            let tempLevel = localStorage.getItem("tempLevel")
-            console.log(tempLevel)
+            let tempLevel = localStorage.getItem("tempLevel");
+            console.log(tempLevel);
             if (tempLevel != null) {
-                let levelString = `({${atob(tempLevel)}})`
-                document.getElementById("gameCode").innerHTML = "-- temp level loaded --"
-                document.getElementById("title").textContent = "temp-level"
-                document.getElementById("copyLink").style.display = "none"
-                levels.tempLevel = eval(levelString)["tempName"]
-                mainGame.runTemp = true
-                localStorage.removeItem("tempLevel")
-                    
+                let levelString = `({${atob(tempLevel)}})`;
+                document.getElementById("gameCode").innerHTML = "-- temp level loaded --";
+                document.getElementById("title").textContent = "temp-level";
+                document.getElementById("copyLink").style.display = "none";
+                levels.tempLevel = eval(levelString)["tempName"];
+                mainGame.runTemp = true;
+                localStorage.removeItem("tempLevel");
             }
         }
+
         function setLevel(lvl) {
-    mainGame.renderer.levelTransistion(lvl)
-                            if (window.hostConnection) {
-                                hostConnection.broadcast(JSON.stringify({
-                                    setLevel:lvl,
-                                }))
-                            }
-}
-       
+            mainGame.renderer.levelTransistion(lvl);
+            if (window.hostConnection) {
+                hostConnection.broadcast(JSON.stringify({
+                    setLevel: lvl,
+                }));
+            }
+        }
     </script>
 
+    <!-- Mobile controls setup -->
     <script>
-        // Check if device is mobile
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        // Orientation check
-        function checkOrientation() {
-            if (isMobile) {
-                const warning = document.getElementById('orientationWarning');
-                const controls = document.getElementById('mobileControls');
-                
-                if (window.innerHeight > window.innerWidth) {
-                    warning.style.display = 'block';
-                    controls.style.display = 'none';
-                } else {
-                    warning.style.display = 'none';
-                    if (mainGame && mainGame.running) {
-                        controls.style.display = 'block';
-                    }
-                }
-            }
-        }
-
-        function showMobileControls() {
-            if (isMobile && window.innerHeight < window.innerWidth) {
-                console.log("Showing mobile controls");
-                document.getElementById('mobileControls').style.display = 'block';
-            }
-        }
-
-        // Listen for orientation changes
-        window.addEventListener('resize', checkOrientation);
-        window.addEventListener('orientationchange', checkOrientation);
-
-        // Initial check
-        checkOrientation();
-
-        // Mobile controls setup
         if (isMobile) {
             const leftBtn = document.getElementById('leftBtn');
             const rightBtn = document.getElementById('rightBtn');
@@ -306,7 +385,8 @@
             leftBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running) {
-                    keys['arrowleft'] = true;
+                    window.keys['arrowleft'] = true;
+                    console.log('Left pressed:', window.keys);
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowleft', true);
                     }
@@ -316,7 +396,7 @@
             leftBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running) {
-                    keys['arrowleft'] = false;
+                    window.keys['arrowleft'] = false;
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowleft', false);
                     }
@@ -327,7 +407,7 @@
             rightBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running) {
-                    keys['arrowright'] = true;
+                    window.keys['arrowright'] = true;
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowright', true);
                     }
@@ -337,86 +417,88 @@
             rightBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running) {
-                    keys['arrowright'] = false;
+                    window.keys['arrowright'] = false;
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowright', false);
                     }
                 }
             });
 
-            // Touch events for jump button with debounce
+            // Touch events for jump button
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running && !isJumping) {
                     isJumping = true;
-                    keys['arrowup'] = true;
+                    window.keys['arrowup'] = true;
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowup', true);
                     }
-                    
-                    // Force key up after a short delay
-                    setTimeout(() => {
-                        keys['arrowup'] = false;
-                        if (window.clientConnection) {
-                            window.clientConnection.updateKey('arrowup', false);
-                        }
-                    }, 100);
                 }
             });
 
             jumpBtn.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 if (window.mainGame && window.mainGame.running) {
-                    keys['arrowup'] = false;
+                    window.keys['arrowup'] = false;
                     if (window.clientConnection) {
                         window.clientConnection.updateKey('arrowup', false);
                     }
-                    // Reset jump state after a short delay
                     setTimeout(() => {
                         isJumping = false;
-                    }, 200);
+                    }, 250);
                 }
             });
 
             // Add touchcancel handlers for safety
-            jumpBtn.addEventListener('touchcancel', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    keys['arrowup'] = false;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowup', false);
+            ['leftBtn', 'rightBtn', 'jumpBtn'].forEach(btnId => {
+                document.getElementById(btnId).addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    if (window.mainGame && window.mainGame.running) {
+                        const keyMap = {
+                            'leftBtn': 'arrowleft',
+                            'rightBtn': 'arrowright',
+                            'jumpBtn': 'arrowup'
+                        };
+                        window.keys[keyMap[btnId]] = false;
+                        if (window.clientConnection) {
+                            window.clientConnection.updateKey(keyMap[btnId], false);
+                        }
                     }
-                    setTimeout(() => {
-                        isJumping = false;
-                    }, 200);
-                }
+                });
             });
+
+            // Prevent default touch behaviors
+            document.addEventListener('touchmove', (e) => {
+                if (e.target.classList.contains('control-button')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // Debug function to monitor key states
+            function logKeyStates() {
+                if (window.mainGame && window.mainGame.running) {
+                    console.log('Current key states:', window.keys);
+                }
+            }
+
+            // Log key states periodically
+            setInterval(logKeyStates, 1000);
+
+            // Monitor player movement
+            setInterval(() => {
+                if (window.mainGame && window.mainGame.running && window.mainGame.players[0]) {
+                    const player = window.mainGame.players[0];
+                    console.log('Player position:', player.body.position);
+                }
+            }, 1000);
         }
 
-        // Modify the existing startGame functions
-        const originalStartMainGame = window.startMainGame;
-        window.startMainGame = function() {
-            if (originalStartMainGame) originalStartMainGame();
-            mainGame.testInit();
-            mainGame.initRender();
-            showMobileControls();
-        };
-
-        const originalStartGame = window.startGame;
-        window.startGame = function() {
-            console.log("Starting game...");
-            if (originalStartGame) originalStartGame();
-            showMobileControls();
-            
-            // Add observer to check when game is actually running
-            const checkRunning = setInterval(() => {
-                if (mainGame && mainGame.running) {
-                    console.log("Game is running, showing controls");
-                    showMobileControls();
-                    clearInterval(checkRunning);
-                }
-            }, 100);
-        };
+        // Add visibility change handler
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && isMobile) {
+                checkAndShowControls();
+            }
+        });
     </script>
 
 </body>
