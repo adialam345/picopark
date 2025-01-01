@@ -399,7 +399,7 @@ class Player {
             this.unReady();
         } else if (this.onGround()) {
             // Increase initial jump velocity for higher jump
-            const jumpVelocity = -4 * str;
+            const jumpVelocity = -2 * str;
             
             // Preserve horizontal momentum while jumping
             const horizontalVelocity = this.body.velocity.x * 1.2; // Slight horizontal boost
