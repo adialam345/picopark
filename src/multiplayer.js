@@ -4,7 +4,9 @@ class Connection {
     this.peer = null; // Own peer object
     this.peerId = null;
     this.conn = null;
-    this.vanityId = id
+    this.vanityId = id;
+    this.retryCount = 0;
+    this.maxRetries = 3;
 
     this.e = {
       connection:this,
@@ -17,49 +19,62 @@ class Connection {
     }
 
     this.send = (d)=>{
-      this.conn.send(d)
+      if (this.conn && this.conn.open) {
+        this.conn.send(d);
+      }
     }
 
     this.online = false;
     this.joining = undefined;
-    this.debug = debug
+    this.debug = debug;
   }
-  log(c) {
-    if(this.debug) console.log(c)
-  }
-  initialize(id=null) {
-      this.joining = id
-    // Create own peer object with connection to shared PeerJS server
-    this.peer = new Peer(this.vanityId, {
-      debug: 2,
-    });
 
+  log(c) {
+    if(this.debug) console.log(c);
+  }
+
+  generateRandomId() {
+    return Math.random().toString(36).substr(2, 9).toUpperCase();
+  }
+
+  initialize(id=null) {
+    this.joining = id;
+    
+    // Create own peer object with connection to shared PeerJS server
+    const peerConfig = {
+      debug: 2,
+      config: {
+        'iceServers': [
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
+      }
+    };
+
+    // Use provided ID or generate random one
+    this.peer = new Peer(this.vanityId || this.generateRandomId(), peerConfig);
     this.peer.connection = this;
 
     this.peer.on("open", function (id) {
+      // Reset retry count on successful connection
+      this.connection.retryCount = 0;
       
-      // Workaround for peer.reconnect deleting previous id
       if (this.id === null) {
         this.id = this.connection.lastPeerId;
       } else {
         this.connection.lastPeerId = this.id;
       }
 
-      
       if (this.connection.joining) {
         this.connection.join(this.connection.joining);
-      } else {
-        if (this.connection.isBuffer) {
-          //clientConnection.conn.send("buffer " + this.id);
-        }
       }
-      this.connection.log("Awaiting connection "+this.connection.lastPeerId)
-      this.connection.e.onOpening()  
+      
+      this.connection.log("Connected with ID: " + this.connection.lastPeerId);
+      this.connection.e.onOpening();
     });
+
     this.peer.on("connection", function (c) {
-      // Allow only a single connection
       this.connection.online = true;
-      this.connection.log("connected "+c)
+      this.connection.log("Connected to: " + c);
 
       if (this.connection.conn && this.connection.conn.open) {
         c.on("open", function () {
@@ -73,83 +88,103 @@ class Connection {
 
       this.connection.conn = c;
       this.connection.conn.connection = this.connection;
-      
-
-      this.connection.e.onConnection()
-
+      this.connection.e.onConnection();
       this.connection.ready();
-
     });
+
     this.peer.on("destroyed", function () {
-      console.error("peer destroyed")
+      console.error("peer destroyed");
       this.connection.online = false;
-
-      this.connection.e.onDisconnection("destroy")
-
-      
+      this.connection.e.onDisconnection("destroy");
     });
+
     this.peer.on("disconnected", function () {
-      console.error("peer disconnected")
-      this.connection.e.onDisconnection("disconnected")
+      console.log("peer disconnected, attempting reconnect...");
+      this.connection.e.onDisconnection("disconnected");
       this.connection.online = false;
-      // Workaround for peer.reconnect deleting previous id
-      this.id = this.connection.lastPeerId;
-      this._lastServerId = this.connection.lastPeerId;
-      this.reconnect();
+      
+      // Attempt reconnect with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, this.connection.retryCount), 10000);
+      setTimeout(() => {
+        if (!this.destroyed && this.connection.retryCount < this.connection.maxRetries) {
+          this.connection.retryCount++;
+          this.reconnect();
+        }
+      }, delay);
     });
-    this.peer.on("close", function () {
-      console.error("peer closed")
-      this.connection.e.onClose()
 
+    this.peer.on("close", function () {
+      console.error("peer closed");
+      this.connection.e.onClose();
       this.connection.conn = null;
       this.connection.online = false;
     });
+
     this.peer.on("error", function (err) {
-      this.connection.e.onConnectionFail()
-      this.connection.online = false
-      console.error("peer err",err)
+      console.error("peer error:", err);
+      
+      if (err.type === 'unavailable-id') {
+        console.log("ID taken, generating new ID...");
+        this.connection.vanityId = this.connection.generateRandomId();
+        setTimeout(() => {
+          if (this.connection.retryCount < this.connection.maxRetries) {
+            this.connection.retryCount++;
+            this.connection.initialize();
+          } else {
+            this.connection.e.onConnectionFail();
+          }
+        }, 1000);
+      } else {
+        this.connection.e.onConnectionFail();
+      }
+      
+      this.connection.online = false;
     });
-    
   }
+
   ready() {
     this.conn.on("data", function (data) {
-        this.connection.e.onData(data)
+      this.connection.e.onData(data);
     });
+    
     this.conn.on("close", function () {
-      console.error("peer closed")
-      this.connection.online = false
-      this.connection.e.onClose()
+      console.error("connection closed");
+      this.connection.online = false;
+      this.connection.e.onClose();
       this.conn = null;
-      
     });
   }
+
   join(id) {
-    
+    if (!this.peer || this.peer.destroyed) {
+      console.error("Peer not initialized");
+      return;
+    }
 
-    // Create connection to destination peer specified in the input field
-    this.conn = this.peer.connect(id, {
-      reliable: true,
-    });
-    this.conn.connection = this
-    //this.conn.connection = this;
+    try {
+      this.conn = this.peer.connect(id, {
+        reliable: true
+      });
+      
+      if (!this.conn) {
+        console.error("Connection failed");
+        return;
+      }
 
-    this.conn.on("open", function () {
-      
-        this.connection.e.onConnection()
+      this.conn.connection = this;
 
-      
-      
-      
-      
-      //this.online = true;
-      /*this.conn.on("data", function (data) {
-        this.connection.receiveMultiplayerData(data);
-      });*/
+      this.conn.on("open", function () {
+        this.connection.e.onConnection();
+      });
 
-    });
-
-    
-    
+      this.conn.on("error", function(err) {
+        console.error("Connection error:", err);
+        this.connection.e.onConnectionFail();
+      });
+    } catch (err) {
+      console.error("Join error:", err);
+      this.e.onConnectionFail();
+    }
   }
 }
 
@@ -253,50 +288,103 @@ class Connection2W {
   }
 
   terminate(twC=false) {
-    if (!twC) this.send(JSON.stringify({terminate:true}), true)
-    setTimeout(() => {
-      this.connT2S.peer.destroy()
-      
-    }, 500);
-    setTimeout(() => {
-      this.connS2T.peer.destroy()
-      
-    }, 500);
+    try {
+      if (!twC) {
+        // Send termination signal to peer if we're initiating the termination
+        this.send(JSON.stringify({terminate:true}), true);
+      }
 
-    this.e.onDisconnection("terminated")
-    
+      // Safely destroy connections with proper cleanup
+      const cleanup = () => {
+        if (this.connT2S && this.connT2S.peer) {
+          this.connT2S.peer.destroy();
+          this.connT2S = null;
+        }
+        if (this.connS2T && this.connS2T.peer) {
+          this.connS2T.peer.destroy();
+          this.connS2T = null;
+        }
+        this.fullyConnected = false;
+      };
+
+      // Use Promise to ensure proper cleanup sequence
+      Promise.resolve()
+        .then(() => {
+          cleanup();
+          this.e.onDisconnection("terminated");
+        })
+        .catch(err => {
+          console.error("Termination error:", err);
+          cleanup(); // Ensure cleanup happens even if there's an error
+        });
+    } catch (err) {
+      console.error("Error during termination:", err);
+      this.e.onDisconnection("error");
+    }
   }
   
   processData(d) {
-    d = JSON.parse(d)
-    if (d.ping) {
-    let ping = (new Date()).getTime()-d.ping,
-      averageStrength = 10
-    this.lastPing = ((this.lastPing*averageStrength)+ping)/(averageStrength+1)
-    }
-    if (d.connectToNow) {
-      this.connect(d.connectToNow, true)
-    } if (d.terminate) {
-      this.terminate(true)
-    } else {
-      this.e.onData(d.content, d)
+    try {
+      if (!d) return;
+      
+      let parsedData;
+      try {
+        parsedData = JSON.parse(d);
+      } catch (err) {
+        console.error("Error parsing data:", err);
+        return;
+      }
+
+      // Handle ping
+      if (parsedData.ping) {
+        const ping = (new Date()).getTime() - parsedData.ping;
+        const averageStrength = 10;
+        this.lastPing = ((this.lastPing * averageStrength) + ping) / (averageStrength + 1);
+      }
+
+      // Handle connection request
+      if (parsedData.connectToNow) {
+        this.connect(parsedData.connectToNow, true);
+        return;
+      }
+
+      // Handle termination request
+      if (parsedData.terminate) {
+        this.terminate(true);
+        return;
+      }
+
+      // Handle regular content
+      if (parsedData.content !== undefined) {
+        this.e.onData(parsedData.content, parsedData);
+      }
+    } catch (err) {
+      console.error("Error processing data:", err);
     }
   }
-
-  
 
   send(d, raw=false) {
-    if (this.fullyConnected) {
-      this.connT2S.send(raw?d:JSON.stringify({
-        content:d,
-        ping:(new Date()).getTime(),
-      }))
-    } else {
-      console.error("2 way not fully connected")
+    try {
+      if (!this.fullyConnected) {
+        console.warn("2 way not fully connected");
+        return;
+      }
+
+      if (!this.connT2S) {
+        console.warn("Connection not available");
+        return;
+      }
+
+      const data = raw ? d : JSON.stringify({
+        content: d,
+        ping: (new Date()).getTime(),
+      });
+
+      this.connT2S.send(data);
+    } catch (err) {
+      console.error("Error sending data:", err);
     }
   }
-
-
 }
 
 
@@ -315,18 +403,46 @@ function parsePlayerData(player) {
   }
 }
 
-function setPlayerWithData(player,data,updatePhysics=true) {
-  //console.log(data)
-  if(updatePhysics) {
-    Matter.Body.setPosition(player.body, data.position)
-    player.direction = data.direction
-  }
-  if (!window.hostConnection) player.updateKeys(data.keys)
-  player.color = data.color
-  player.frame = data.frame
-  player.ready = data.ready
-  player.hasShield = data.shields
-  player.dead = data.dead
-  player.setScale(data.scale)
+function setPlayerWithData(player, data, updatePhysics=true) {
+  if (!player || !data) return;
 
+  try {
+    // Only update physics (position/movement) if updatePhysics is true
+    if (updatePhysics) {
+      if (data.position) {
+        Matter.Body.setPosition(player.body, data.position);
+      }
+      if (data.velocity) {
+        Matter.Body.setVelocity(player.body, data.velocity);
+      }
+      if (data.direction !== undefined) {
+        player.direction = data.direction;
+      }
+    }
+
+    // Always update non-physics properties
+    if (data.keys && !window.hostConnection) {
+      player.updateKeys(data.keys);
+    }
+    if (data.color !== undefined) {
+      player.color = data.color;
+    }
+    if (data.frame !== undefined) {
+      player.frame = data.frame;
+    }
+    if (data.ready !== undefined) {
+      player.ready = data.ready;
+    }
+    if (data.shields !== undefined) {
+      player.hasShield = data.shields;
+    }
+    if (data.dead !== undefined) {
+      player.dead = data.dead;
+    }
+    if (data.scale !== undefined) {
+      player.setScale(data.scale);
+    }
+  } catch (err) {
+    console.error('Error updating player data:', err);
+  }
 }

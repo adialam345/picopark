@@ -79,6 +79,20 @@ class Host {
             if (d.player) {
                 connection.player = this.updateClientBody(d.player, connection)
             }
+            if (d.keycode) {
+                // Update player movement based on keycode
+                if (connection.player) {
+                    connection.player.keys[d.keycode.code] = d.keycode.value;
+                    
+                    // If client also sent their state, update it
+                    if (d.playerState) {
+                        Matter.Body.setPosition(connection.player.body, d.playerState.position);
+                        if (d.playerState.velocity) {
+                            Matter.Body.setVelocity(connection.player.body, d.playerState.velocity);
+                        }
+                    }
+                }
+            }
             if (d.setUsername) {
                 connection.clientUsername = d.setUsername
                 addPlayerToMenu(d.setUsername)
@@ -115,32 +129,63 @@ class Host {
         var findPlayerById = (id) => {
             for (let i = 0; i < this.game.players.length; i++) {
                 const player = this.game.players[i];
-                if (player.body.id == id) return player
+                if (player.body.id == id) return player;
             }
+            return null;
         }
-        const player = data;
-        var playerId = player.id
-        var foundPlayer = findPlayerById(playerId)
-        if (foundPlayer==undefined) {
-            
 
+        if (!data || !data.id) {
+            console.warn('Invalid player data received');
+            return null;
+        }
+
+        var foundPlayer = findPlayerById(data.id);
+        
+        if (!foundPlayer) {
+            // Create new player if not found
             foundPlayer = mainGame.playerhandler.addPlayer({
-                bodyOptions:{
-                    id:player.id,
+                bodyOptions: {
+                    id: data.id,
                 },
-                color:this.game.fetchColor(),
-            })
-            foundPlayer.onlinePlayer = true
-        } else {
-
+                color: this.game.fetchColor(),
+            });
+            foundPlayer.onlinePlayer = true;
         }
-        conn.clientBody = foundPlayer
 
-        foundPlayer.conn = conn
-        foundPlayer.keys = data.keys
+        // Update connection references
+        conn.clientBody = foundPlayer;
+        foundPlayer.conn = conn;
 
-        return foundPlayer
-    
+        // Update player state
+        if (data.position) {
+            Matter.Body.setPosition(foundPlayer.body, data.position);
+        }
+        if (data.velocity) {
+            Matter.Body.setVelocity(foundPlayer.body, data.velocity);
+        }
+        if (data.direction !== undefined) {
+            foundPlayer.direction = data.direction;
+        }
+        if (data.keys) {
+            foundPlayer.keys = data.keys;
+        }
+        if (data.color) {
+            foundPlayer.color = data.color;
+        }
+        if (data.scale) {
+            foundPlayer.setScale(data.scale);
+        }
+        if (data.ready !== undefined) {
+            foundPlayer.ready = data.ready;
+        }
+        if (data.shields !== undefined) {
+            foundPlayer.hasShield = data.shields;
+        }
+        if (data.dead !== undefined) {
+            foundPlayer.dead = data.dead;
+        }
+
+        return foundPlayer;
     }
     
 

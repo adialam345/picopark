@@ -11,8 +11,22 @@ class LevelHandler {
 
     }
     setLevel(name) {
-        this.game.levelHandler.restartLevel()
-        this.game.levelHandler.loadLevel(levels[name], name)
+        if (!name || typeof name !== 'string') {
+            console.error('Invalid level name:', name);
+            return;
+        }
+
+        if (!levels || !levels[name]) {
+            console.error('Level not found:', name);
+            return;
+        }
+
+        try {
+            this.game.levelHandler.restartLevel();
+            this.game.levelHandler.loadLevel(levels[name], name);
+        } catch (err) {
+            console.error('Error setting level:', err);
+        }
     }
     restartLevel() {
         this.game.doors = []
@@ -44,19 +58,33 @@ class LevelHandler {
         
     }
     loadLevel(dat, name) {
-        var levelData = dat,
-    
-            cellsize = v(50,50),
-            wallThickness = 30
-    
-            let levelMap = levelData.map
-            this.currentLevel.data = levelMap
-            this.currentLevel.cellsize = cellsize
-            this.currentLevel.name = name
-            this.game.buttons = levelData.buttons
+        if (!dat) {
+            console.error("Level data is undefined for level:", name);
+            return;
+        }
 
-        var width = levelMap[0].length*cellsize.x,
-            height = levelMap.length*cellsize.y
+        if (!dat.map) {
+            console.error("Level map is undefined for level:", name);
+            return;
+        }
+
+        var levelData = dat;
+        var cellsize = v(50,50);
+        var wallThickness = 30;
+    
+        let levelMap = levelData.map;
+        if (!Array.isArray(levelMap) || levelMap.length === 0 || !Array.isArray(levelMap[0])) {
+            console.error("Invalid level map format for level:", name);
+            return;
+        }
+
+        this.currentLevel.data = levelMap;
+        this.currentLevel.cellsize = cellsize;
+        this.currentLevel.name = name;
+        this.game.buttons = levelData.buttons || [];
+
+        var width = levelMap[0].length * cellsize.x;
+        var height = levelMap.length * cellsize.y;
 
         if (levelData.playersBinded) {
             this.game.bindPlayers(this.game.players)
