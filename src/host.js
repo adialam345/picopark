@@ -6,120 +6,115 @@ class Host {
         this.id = wordsf[randInt(0, wordsf.length)].toUpperCase()
         this.roomJoinOnline = false
         this.opening = true
+        this.maxPlayers = 4 // Maximum number of players allowed
     }
+
     init() {
-        this.recycleJoinConn()
-        setInterval(function(){
-            if (window.hostConnection) {
-                if (!(window.hostConnection.roomJoinOnline || window.hostConnection.opening)) {
-                window.hostConnection.recycleJoinConn()
-            }}
-        })
+        this.setupJoinConnection()
     }
-    broadcast(data) {
-        for (let i = 0; i < this.connections.length; i++) {
-            const conn = this.connections[i];
-            conn.send(data)
-        }
-    }
-    recycleJoinConn() {
+
+    setupJoinConnection() {
         this.joinConn = new Connection2W()
         this.joinConn.open(this.id)
-        this.opening = true
 
         this.joinConn.e.onOpening = ()=>{
-            this.roomJoinOnline = true
-            this.opening = false
             setRoomCode(this.joinConn.selfId)
-
+            this.opening = false
         }
-        this.joinConn.e.onConnection = ()=>{
-            document.getElementById("incoming").textContent = " (incoming connection)"
 
+        this.joinConn.e.onConnection = ()=>{
+            // Check if room is full
+            if (this.connections.length >= this.maxPlayers) {
+                this.joinConn.send(JSON.stringify({
+                    error: "Room is full"
+                }))
+                return
+            }
+
+            document.getElementById("incoming").textContent = " (incoming connection)"
             var newConnection = this.openConnection()
+            
             newConnection.e.onOpening = ()=>{
                 this.joinConn.send(JSON.stringify({
-                    reconnectToThis:newConnection.connS2T.lastPeerId,
+                    reconnectToThis: newConnection.connS2T.lastPeerId,
                 }))
-                setTimeout(() => {
-                    this.joinConn.terminate()
-                }, 1000);
-                
-
-
             }
-            
         }
+
         this.joinConn.e.onDisconnection = ()=>{
-            this.roomJoinOnline = false
-            this.recycleJoinConn()
-            
-
-        }
-
-
-    }
-    closeConnection(conn) {
-        for (let i = 0; i < this.connections.length; i++) {
-            const conn2 = this.connections[i];
-            if(conn.selfId==conn2.selfId) {
-                conn.unloaded = true
-                this.connections.splice(i,1)
-                break
+            // Only create new join connection if the current one is disconnected
+            if (this.joinConn.connS2T.disconnected) {
+                setTimeout(() => {
+                    this.setupJoinConnection()
+                }, 1000)
             }
         }
     }
+
+    broadcast(data) {
+        this.connections.forEach(conn => {
+            if (conn && !conn.unloaded) {
+                try {
+                    conn.send(data)
+                } catch (e) {
+                    console.error('Failed to send to client:', e)
+                }
+            }
+        })
+    }
+
+    closeConnection(conn) {
+        const index = this.connections.findIndex(c => c.selfId === conn.selfId)
+        if (index !== -1) {
+            const connection = this.connections[index]
+            connection.unloaded = true
+            this.connections.splice(index, 1)
+            
+            if (connection.clientUsername) {
+                removePlayerFromMenu(connection.clientUsername)
+            }
+        }
+    }
+
     openConnection() {
         var connection = new Connection2W()
-
         connection.open()
 
         connection.e.onData = (d)=>{
-            d = JSON.parse(d)
-            if (d.player) {
-                connection.player = this.updateClientBody(d.player, connection)
-            }
-            if (d.keycode) {
-                // Update player movement based on keycode
-                if (connection.player) {
-                    connection.player.keys[d.keycode.code] = d.keycode.value;
-                    
-                    // If client also sent their state, update it
+            try {
+                d = JSON.parse(d)
+                if (d.player) {
+                    connection.player = this.updateClientBody(d.player, connection)
+                }
+                if (d.keycode && connection.player) {
+                    connection.player.keys[d.keycode.code] = d.keycode.value
                     if (d.playerState) {
-                        Matter.Body.setPosition(connection.player.body, d.playerState.position);
+                        Matter.Body.setPosition(connection.player.body, d.playerState.position)
                         if (d.playerState.velocity) {
-                            Matter.Body.setVelocity(connection.player.body, d.playerState.velocity);
+                            Matter.Body.setVelocity(connection.player.body, d.playerState.velocity)
                         }
                     }
                 }
-            }
-            if (d.setUsername) {
-                connection.clientUsername = d.setUsername
-                addPlayerToMenu(d.setUsername)
+                if (d.setUsername) {
+                    connection.clientUsername = d.setUsername
+                    addPlayerToMenu(d.setUsername)
+                }
+            } catch (e) {
+                console.error('Error processing client data:', e)
             }
         }
-        connection.e.onConnection = (d)=>{
+
+        connection.e.onConnection = ()=>{
             document.getElementById("incoming").textContent = ""
-           
-            //addPlayerToMenu("yay")
         }
-        connection.e.onClose = (d)=>{
-            console.log(connection)
-            connection.player.color = "red"
-            connection.player.unload()
+
+        connection.e.onClose = ()=>{
+            if (connection.player) {
+                connection.player.color = "red"
+                connection.player.unload()
+            }
             this.closeConnection(connection)
-
-           
-            //addPlayerToMenu("yay")
         }
-        /*
-        connection.e.onOpening = function () {
-            let self = this.connection
-            console.log("opened joinConn on id: ",self.lastPeerId)
-        }
-
-        connection.initialize()
-        */
        
         this.connections.push(connection)
         return connection

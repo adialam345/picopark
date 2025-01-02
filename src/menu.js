@@ -1,4 +1,3 @@
-
 function startGame() {
     document.getElementById("c").style.display = ""
     document.getElementById("menu").style.display = "none"
@@ -25,4 +24,15 @@ function setRoomCode(c) {
 
 function addPlayerToMenu(name) {
     document.getElementById("memberlist").appendChild(createElementFromHTML(`<div>${name}<br></div>`))
+}
+
+function removePlayerFromMenu(name) {
+    const memberList = document.getElementById("memberlist");
+    const members = memberList.getElementsByTagName("div");
+    for (let i = 0; i < members.length; i++) {
+        if (members[i].textContent.includes(name)) {
+            memberList.removeChild(members[i]);
+            break;
+        }
+    }
 }

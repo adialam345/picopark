@@ -1,12 +1,13 @@
 class Connection {
   constructor(id=null, debug=false) {
     this.lastPeerId = null;
-    this.peer = null; // Own peer object
+    this.peer = null;
     this.peerId = null;
     this.conn = null;
     this.vanityId = id;
-    this.retryCount = 0;
-    this.maxRetries = 3;
+    this.debug = debug;
+    this.online = false;
+    this.joining = undefined;
 
     this.e = {
       connection:this,
@@ -23,41 +24,18 @@ class Connection {
         this.conn.send(d);
       }
     }
-
-    this.online = false;
-    this.joining = undefined;
-    this.debug = debug;
-  }
-
-  log(c) {
-    if(this.debug) console.log(c);
-  }
-
-  generateRandomId() {
-    return Math.random().toString(36).substr(2, 9).toUpperCase();
   }
 
   initialize(id=null) {
     this.joining = id;
     
-    // Create own peer object with connection to shared PeerJS server
-    const peerConfig = {
-      debug: 2,
-      config: {
-        'iceServers': [
-          { urls: 'stun:stun.l.google.com:19302' }
-        ]
-      }
-    };
-
-    // Use provided ID or generate random one
-    this.peer = new Peer(this.vanityId || this.generateRandomId(), peerConfig);
+    this.peer = new Peer(this.vanityId || null, {
+      debug: 2
+    });
+    
     this.peer.connection = this;
 
     this.peer.on("open", function (id) {
-      // Reset retry count on successful connection
-      this.connection.retryCount = 0;
-      
       if (this.id === null) {
         this.id = this.connection.lastPeerId;
       } else {
@@ -74,287 +52,160 @@ class Connection {
 
     this.peer.on("connection", function (c) {
       this.connection.online = true;
-      this.connection.log("Connected to: " + c);
-
-      if (this.connection.conn && this.connection.conn.open) {
-        c.on("open", function () {
-          c.send("Already connected to another client");
-          setTimeout(function () {
-            c.close();
-          }, 500);
-        });
-        return;
-      }
-
+      this.connection.log("Connected to: " + c.peer);
+      
       this.connection.conn = c;
       this.connection.conn.connection = this.connection;
       this.connection.e.onConnection();
       this.connection.ready();
     });
 
-    this.peer.on("destroyed", function () {
-      console.error("peer destroyed");
-      this.connection.online = false;
-      this.connection.e.onDisconnection("destroy");
-    });
-
     this.peer.on("disconnected", function () {
-      console.log("peer disconnected, attempting reconnect...");
-      this.connection.e.onDisconnection("disconnected");
       this.connection.online = false;
-      
-      // Attempt reconnect with exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, this.connection.retryCount), 10000);
-      setTimeout(() => {
-        if (!this.destroyed && this.connection.retryCount < this.connection.maxRetries) {
-          this.connection.retryCount++;
-          this.reconnect();
-        }
-      }, delay);
+      this.connection.e.onDisconnection("disconnected");
     });
 
     this.peer.on("close", function () {
-      console.error("peer closed");
-      this.connection.e.onClose();
       this.connection.conn = null;
       this.connection.online = false;
+      this.connection.e.onClose();
     });
 
     this.peer.on("error", function (err) {
       console.error("peer error:", err);
-      
-      if (err.type === 'unavailable-id') {
-        console.log("ID taken, generating new ID...");
-        this.connection.vanityId = this.connection.generateRandomId();
-        setTimeout(() => {
-          if (this.connection.retryCount < this.connection.maxRetries) {
-            this.connection.retryCount++;
-            this.connection.initialize();
-          } else {
-            this.connection.e.onConnectionFail();
-          }
-        }, 1000);
-      } else {
-        this.connection.e.onConnectionFail();
-      }
-      
       this.connection.online = false;
+      this.connection.e.onConnectionFail();
     });
   }
 
   ready() {
-    this.conn.on("data", function (data) {
-      this.connection.e.onData(data);
-    });
+    if (!this.conn) return;
     
-    this.conn.on("close", function () {
-      console.error("connection closed");
-      this.connection.online = false;
-      this.connection.e.onClose();
+    this.conn.on("data", (data) => {
+      this.e.onData(data);
+    });
+
+    this.conn.on("close", () => {
+      this.online = false;
+      this.e.onClose();
       this.conn = null;
     });
   }
 
   join(id) {
-    if (!this.peer || this.peer.destroyed) {
-      console.error("Peer not initialized");
-      return;
-    }
+    if (!this.peer) return;
+    
+    this.conn = this.peer.connect(id, {
+      reliable: true
+    });
 
-    try {
-      this.conn = this.peer.connect(id, {
-        reliable: true
-      });
-      
-      if (!this.conn) {
-        console.error("Connection failed");
-        return;
-      }
+    this.conn.connection = this;
 
-      this.conn.connection = this;
+    this.conn.on("open", function () {
+      this.connection.e.onConnection();
+      this.connection.ready();
+    });
+  }
 
-      this.conn.on("open", function () {
-        this.connection.e.onConnection();
-      });
-
-      this.conn.on("error", function(err) {
-        console.error("Connection error:", err);
-        this.connection.e.onConnectionFail();
-      });
-    } catch (err) {
-      console.error("Join error:", err);
-      this.e.onConnectionFail();
-    }
+  log(c) {
+    if(this.debug) console.log(c);
   }
 }
 
 class Connection2W {
   constructor() {
-    this.connS2T;
-    this.connT2S;
-    this.selfId;
+    this.connS2T = null;
+    this.connT2S = null;
+    this.selfId = null;
     this.fullyConnected = false;
-
-    this.lastPing = 0
+    this.lastPing = 0;
 
     this.e = {
-      connection:this,
-      onConnection:()=>{},
-      onOpening:()=>{},
-      onDisconnection:()=>{},
-      onData:()=>{},
-      onConnectionFail:()=>{},
-      onClose:()=>{},
-      
-    }
-
-  }
-  connectionEvents(conn) {
-    conn.e.onDisconnection = (e)=>{
-      this.fullyConnected = false
-      this.e.onDisconnection(e)
+      connection: this,
+      onConnection: () => {},
+      onOpening: () => {},
+      onDisconnection: () => {},
+      onData: () => {},
+      onConnectionFail: () => {},
+      onClose: () => {},
     }
   }
-  open(id=null, twC=false) {
-    this.selfId = id
-    this.connS2T = new Connection(id)
-    this.connS2T.twC = this
-    this.connectionEvents(this.connS2T)
-    this.connS2T.initialize()
-    this.connS2T.e.onOpening=function(){
-      this.connection.twC.e.onOpening()
-      console.log("opened joinConn on id: ",this.connection.lastPeerId)
-      
 
-    }
-    if (twC) {
+  open(id = null, twC = false) {
+    this.selfId = id;
+    this.connS2T = new Connection(id);
+    this.connS2T.twC = this;
 
-      this.connS2T.e.onConnection=function(){
-        this.connection.twC.fullyConnected = true
-        this.connection.twC.e.onConnection()
-        console.log("fullyConnected")
-      }
-
-
-    }
-    this.connS2T.e.onData=function(d) {
-      let self = this.connection.twC
-      self.processData(d)
-    }
-    this.connS2T.e.onClose=()=>{
-      
-      this.e.onClose()
+    this.connS2T.e.onOpening = () => {
+      this.e.onOpening();
     }
 
-    
-    
+    this.connS2T.e.onConnection = () => {
+      this.fullyConnected = true;
+      this.e.onConnection();
+    }
+
+    this.connS2T.e.onData = (d) => {
+      this.processData(d);
+    }
+
+    this.connS2T.e.onDisconnection = (e) => {
+      this.fullyConnected = false;
+      this.e.onDisconnection(e);
+    }
+
+    this.connS2T.initialize();
   }
-  connect(id, twC=false) {
-    this.connT2S = new Connection()
-    this.connT2S.twC = this
-    this.connectionEvents(this.connT2S)
-    this.connT2S.initialize(id)
+
+  connect(id, twC = false) {
+    this.connT2S = new Connection();
+    this.connT2S.twC = this;
+
     if (!twC) {
-        this.connT2S.e.onConnection=function(){
-        this.connection.twC.open(null, true)
-        this.connection.twC.connS2T.e.onOpening=function(){
-          var newId = this.connection.twC.connS2T.lastPeerId
-          this.connection.twC.connT2S.send(JSON.stringify({
-            connectToNow:newId,
-            content:JSON.stringify({}),
-          }))
-
+      this.connT2S.e.onConnection = () => {
+        this.open(null, true);
+        this.connS2T.e.onOpening = () => {
+          var newId = this.connS2T.lastPeerId;
+          this.connT2S.send(JSON.stringify({
+            connectToNow: newId,
+            content: JSON.stringify({}),
+          }));
         }
-
       }
     } else {
-      
-      this.connT2S.e.onConnection=function(){
-        this.connection.twC.fullyConnected = true
-        this.connection.twC.e.onConnection()
-        console.log("fullyConnected")
-
+      this.connT2S.e.onConnection = () => {
+        this.fullyConnected = true;
+        this.e.onConnection();
       }
-      
-    }
-    this.connT2S.e.onConnectionFail=()=>{
-      this.e.onConnectionFail()
-    }
-    this.connT2S.e.onClose=()=>{
-      this.e.onClose()
     }
 
+    this.connT2S.e.onConnectionFail = () => {
+      this.e.onConnectionFail();
+    }
 
+    this.connT2S.e.onClose = () => {
+      this.e.onClose();
+    }
+
+    this.connT2S.initialize(id);
   }
 
-  terminate(twC=false) {
-    try {
-      if (!twC) {
-        // Send termination signal to peer if we're initiating the termination
-        this.send(JSON.stringify({terminate:true}), true);
-      }
-
-      // Safely destroy connections with proper cleanup
-      const cleanup = () => {
-        if (this.connT2S && this.connT2S.peer) {
-          this.connT2S.peer.destroy();
-          this.connT2S = null;
-        }
-        if (this.connS2T && this.connS2T.peer) {
-          this.connS2T.peer.destroy();
-          this.connS2T = null;
-        }
-        this.fullyConnected = false;
-      };
-
-      // Use Promise to ensure proper cleanup sequence
-      Promise.resolve()
-        .then(() => {
-          cleanup();
-          this.e.onDisconnection("terminated");
-        })
-        .catch(err => {
-          console.error("Termination error:", err);
-          cleanup(); // Ensure cleanup happens even if there's an error
-        });
-    } catch (err) {
-      console.error("Error during termination:", err);
-      this.e.onDisconnection("error");
-    }
-  }
-  
   processData(d) {
     try {
       if (!d) return;
-      
-      let parsedData;
-      try {
-        parsedData = JSON.parse(d);
-      } catch (err) {
-        console.error("Error parsing data:", err);
-        return;
-      }
+      let parsedData = JSON.parse(d);
 
-      // Handle ping
       if (parsedData.ping) {
         const ping = (new Date()).getTime() - parsedData.ping;
         const averageStrength = 10;
         this.lastPing = ((this.lastPing * averageStrength) + ping) / (averageStrength + 1);
       }
 
-      // Handle connection request
       if (parsedData.connectToNow) {
         this.connect(parsedData.connectToNow, true);
         return;
       }
 
-      // Handle termination request
-      if (parsedData.terminate) {
-        this.terminate(true);
-        return;
-      }
-
-      // Handle regular content
       if (parsedData.content !== undefined) {
         this.e.onData(parsedData.content, parsedData);
       }
@@ -363,15 +214,10 @@ class Connection2W {
     }
   }
 
-  send(d, raw=false) {
+  send(d, raw = false) {
     try {
       if (!this.fullyConnected) {
-        console.warn("2 way not fully connected");
-        return;
-      }
-
-      if (!this.connT2S) {
-        console.warn("Connection not available");
+        console.warn("Connection not fully established");
         return;
       }
 
@@ -380,7 +226,11 @@ class Connection2W {
         ping: (new Date()).getTime(),
       });
 
-      this.connT2S.send(data);
+      if (this.connT2S && this.connT2S.conn) {
+        this.connT2S.send(data);
+      } else if (this.connS2T && this.connS2T.conn) {
+        this.connS2T.send(data);
+      }
     } catch (err) {
       console.error("Error sending data:", err);
     }
