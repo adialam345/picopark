@@ -20,54 +20,69 @@
 
         }
         body {
-            margin: 0%;
+            margin: 0;
             overflow: hidden;
+            font-family: 'squareforced', Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
         }
         .overlay {
             position: fixed;
-            top: 0%;
-            left: 0%;
+            top: 10px;
+            left: 10px;
             z-index: 10;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        .overlay a {
+            color: #4CAF50;
+            text-decoration: none;
+            margin: 0 5px;
+        }
+        .overlay a:hover {
+            text-decoration: underline;
         }
         #mobileControls {
             display: none;
             position: fixed;
-            bottom: 20px;
+            bottom: 10px;
             left: 0;
             right: 0;
             z-index: 100;
             text-align: center;
         }
         .control-button {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             margin: 5px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.5);
-            border: 2px solid #fff;
-            font-size: 24px;
+            background: rgba(76, 175, 80, 0.8);
+            border: none;
+            color: white;
+            font-size: 20px;
             touch-action: none;
             user-select: none;
         }
         #leftBtn {
             position: fixed;
-            bottom: 20px;
-            left: 20px;
+            bottom: 10px;
+            left: 10px;
         }
         #rightBtn {
             position: fixed;
-            bottom: 20px;
-            left: 100px;
+            bottom: 10px;
+            left: 70px;
         }
         #jumpBtn {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            bottom: 10px;
+            right: 10px;
         }
         #downBtn {
             position: fixed;
-            bottom: 20px;
-            right: 100px;
+            bottom: 10px;
+            right: 70px;
         }
         #orientationWarning {
             display: none;
@@ -82,6 +97,170 @@
             padding-top: 40%;
             z-index: 1000;
             font-family: Arial, sans-serif;
+        }
+        .menu-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #2a2a2a;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            color: white;
+            z-index: 1000;
+            max-height: 90vh;
+            overflow-y: auto;
+            width: 90%;
+            max-width: 400px;
+        }
+        .menu-container h1 {
+            font-size: 1.5rem;
+            margin: 0 0 1rem 0;
+            color: #4CAF50;
+        }
+        .menu-container h2 {
+            color: #4CAF50;
+            margin: 0.5rem 0;
+            font-size: 1.2rem;
+        }
+        .room-code {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+            padding: 0.8rem;
+            background-color: #333;
+            border-radius: 5px;
+            color: #4CAF50;
+        }
+        .menu-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            margin: 0.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, transform 0.2s;
+            width: auto;
+            min-width: 120px;
+        }
+        .menu-button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+        .menu-button:active {
+            transform: scale(0.95);
+        }
+        .mobile-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+        }
+        .mobile-controls button {
+            background-color: rgba(76, 175, 80, 0.8);
+            color: white;
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .mobile-controls button:active {
+            background-color: rgba(69, 160, 73, 0.8);
+            transform: scale(0.95);
+        }
+        .orientation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 2000;
+        }
+        .orientation-warning h2 {
+            color: #4CAF50;
+            margin-bottom: 1rem;
+        }
+        @media (min-width: 768px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+        .member-list {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .member-list div {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .game-code {
+            font-size: 1.2rem;
+            color: #4CAF50;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .copy-link {
+            color: #4CAF50;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .copy-link:hover {
+            text-decoration: underline;
+        }
+        @media (orientation: landscape) {
+            .menu-container {
+                padding: 1rem;
+                max-height: 80vh;
+            }
+            .menu-container h1 {
+                font-size: 1.2rem;
+                margin-bottom: 0.5rem;
+            }
+            .menu-button {
+                padding: 0.6rem 1.2rem;
+                margin: 0.3rem;
+                font-size: 0.8rem;
+                min-width: 100px;
+            }
+            .member-list {
+                max-height: 100px;
+            }
+            .control-button {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+            #rightBtn {
+                left: 60px;
+            }
+            #downBtn {
+                right: 60px;
+            }
         }
     </style>
 </head>
@@ -116,8 +295,21 @@
         window.keys = window.keys || {};
 
         // URL parsing
-        var url = location.href,
-            urlData = url.split("?").splice(-1,1);
+        var url = location.href;
+        var params = new URLSearchParams(window.location.search);
+        var urlData = {};
+        
+        // Parse URL parameters properly
+        for (let [key, value] of params) {
+            urlData[key] = value;
+        }
+
+        // Clean up join ID if present (remove any additional parameters)
+        if (urlData.join) {
+            urlData.join = urlData.join.split('&')[0];
+        }
+
+        console.log("URL Data:", urlData);
 
         data = {};
         urlData.forEach((e)=>{
@@ -248,23 +440,22 @@
 
     <script src="./src/menu.js"></script>
 
-    <div id="menu">
-        <br>
-        <div id="host" style="display: none;">
+    <div id="menu" class="menu-container">
+        <h1 class="game-title">Microscopic Natural Area for Public Recreational Activities</h1>
+        <div id="host" style="display: none;" class="menu-section">
             <div id="gameDetails">
-                <div id="gameCode">Code: <b id="roomCode">fetching</b><span id="incoming"></span></div>
-                <a id="copyLink" href="#" onclick="(function(){
+                <div id="gameCode" class="game-code">Code: <b id="roomCode">fetching</b><span id="incoming"></span></div>
+                <a id="copyLink" href="#" class="copy-link" onclick="(function(){
         navigator.clipboard.writeText(`https://aeolus-1.github.io/picoParkClone/game.html?join=${hostConnection.joinConn.selfId}`);
         return false;
     })();return false;">[Copy Link]</a>
             </div>
-            <div id="memberList" style="border: solid black 1px; width:200px">
+            <div id="memberList" class="member-list">
                 <h2>Members:</h2>
                 <div id="memberlist"></div>
                 <div>Host<br></div>
-
             </div>
-            <button onClick="(function(){
+            <button class="menu-button" onClick="(function(){
                 mainGame.playerhandler.addPlayer({
                     controls:['a','d','w','s'],
                     keys:keys,
@@ -272,9 +463,9 @@
                 })
                 addPlayerToMenu('Player2')
                 return false;
-            })();return false;">Add local co-op Player</button>
-<hr>
-            <button onClick="(function(){
+            })();return false;">Add Local Co-op Player</button>
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+            <button class="menu-button" onClick="(function(){
                 startGame()
                 hostConnection.broadcast(JSON.stringify({
                     startGame:true,
@@ -283,8 +474,11 @@
             })();return false;">Start Game</button>
             </div>
 
-        <div id="join" style="display: none;">
-            Waiting for host to start (maybe idk really)
+        <div id="join" style="display: none;" class="menu-section">
+            <div class="game-code">Waiting for host to start...</div>
+            <div class="member-list">
+                <div>Connected to room</div>
+            </div>
         </div>
     </div>
 

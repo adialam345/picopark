@@ -28,54 +28,79 @@ class Connection {
 
   initialize(id=null) {
     this.joining = id;
+    console.log("Initializing connection", this.joining ? "as client" : "as host");
     
-    this.peer = new Peer(this.vanityId || null, {
-      debug: 2
-    });
-
-    this.peer.connection = this;
-
-    this.peer.on("open", function (id) {
-      if (this.id === null) {
-        this.id = this.connection.lastPeerId;
-      } else {
-        this.connection.lastPeerId = this.id;
+    const peerConfig = {
+      host: 'peerjs-production-b4a7.up.railway.app',
+      port: 443,
+      path: '/',
+      secure: true,
+      debug: 0,
+      config: {
+        'iceServers': [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       }
+    };
+
+    try {
+      const hostId = this.vanityId || (this.joining ? null : Math.random().toString(36).substring(2, 6).toUpperCase());
+      this.peer = new Peer(hostId, peerConfig);
       
-      if (this.connection.joining) {
-        this.connection.join(this.connection.joining);
-      }
-      
-      this.connection.log("Connected with ID: " + this.connection.lastPeerId);
-      this.connection.e.onOpening();
-    });
+      this.peer.on("open", (id) => {
+        console.log("PeerJS connection opened with ID:", id);
+        this.lastPeerId = id;
+        
+        if (this.joining) {
+          console.log("Attempting to join room:", this.joining);
+          this.join(this.joining);
+        }
+        
+        this.e.onOpening();
+      });
 
-    this.peer.on("connection", function (c) {
-      this.connection.online = true;
-      this.connection.log("Connected to: " + c.peer);
+      this.peer.on("connection", (c) => {
+        console.log("New peer connection:", c.peer);
+        this.online = true;
+        this.conn = c;
+        this.conn.connection = this;
+        
+        c.on('error', (err) => {
+          console.error("Connection error:", err);
+          this.e.onConnectionFail();
+        });
 
-      this.connection.conn = c;
-      this.connection.conn.connection = this.connection;
-      this.connection.e.onConnection();
-      this.connection.ready();
-    });
+        this.e.onConnection();
+        this.ready();
+      });
 
-    this.peer.on("disconnected", function () {
-      this.connection.online = false;
-      this.connection.e.onDisconnection("disconnected");
-    });
+      this.peer.on("disconnected", () => {
+        console.log("Peer disconnected");
+        this.online = false;
+        this.e.onDisconnection("disconnected");
+        
+        setTimeout(() => {
+          console.log("Attempting to reconnect...");
+          this.peer.reconnect();
+        }, 1000);
+      });
 
-    this.peer.on("close", function () {
-      this.connection.conn = null;
-      this.connection.online = false;
-      this.connection.e.onClose();
-    });
+      this.peer.on("close", () => {
+        console.log("Peer connection closed");
+        this.conn = null;
+        this.online = false;
+        this.e.onClose();
+      });
 
-    this.peer.on("error", function (err) {
-      console.error("peer error:", err);
-      this.connection.online = false;
-      this.connection.e.onConnectionFail();
-    });
+      this.peer.on("error", (err) => {
+        console.error("Peer error:", err);
+        this.online = false;
+        this.e.onConnectionFail();
+      });
+    } catch (error) {
+      console.error("Error initializing peer:", error);
+    }
   }
 
   ready() {
@@ -93,18 +118,54 @@ class Connection {
   }
 
   join(id) {
-    if (!this.peer) return;
+    if (!this.peer) {
+      console.error("Peer not initialized");
+      return;
+    }
     
-    this.conn = this.peer.connect(id, {
-      reliable: true
-    });
+    const peerId = id.toString().toUpperCase();
+    console.log("Attempting to join peer:", peerId);
 
-    this.conn.connection = this;
+    try {
+      this.conn = this.peer.connect(peerId, {
+      reliable: true,
+        metadata: { type: 'client' }
+      });
 
-    this.conn.on("open", function () {
-      this.connection.e.onConnection();
-      this.connection.ready();
-    });
+      if (!this.conn) {
+        console.error("Failed to create connection");
+        return;
+      }
+
+      this.conn.connection = this;
+
+      this.conn.on("open", () => {
+        console.log("Connection opened successfully to:", peerId);
+        this.online = true;
+        this.e.onConnection();
+        this.ready();
+      });
+
+      this.conn.on("data", (data) => {
+        console.log("Received data from host:", data);
+        this.e.onData(data);
+      });
+
+      this.conn.on("error", (err) => {
+        console.error("Connection error for peer " + peerId + ":", err);
+        this.online = false;
+        this.e.onConnectionFail();
+      });
+
+      this.conn.on("close", () => {
+        console.log("Connection closed to peer:", peerId);
+        this.online = false;
+        this.e.onClose();
+      });
+    } catch (error) {
+      console.error("Error joining peer " + peerId + ":", error);
+      this.e.onConnectionFail();
+    }
   }
 
   log(c) {

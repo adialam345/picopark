@@ -1,47 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="./assets/imgs/favicon.png">
-    <title>Microscopic Natural Area for Public Recreational Activities</title>
+    <title>Pico Park Clone</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            background-color: #2a2a2a;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            width: 80%;
+            padding: 0.8rem;
+            margin: 0.5rem 0;
+            border: none;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        input:focus {
+            outline: 2px solid #4CAF50;
+            background-color: #404040;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            margin: 0.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .error-message {
+            color: #ff4444;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            input, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Microscopic Natural Area for Public Recreational Activities</h1>
-    Host Game <button href="yay"  onClick="(function(){
-        window.open('./game.html?host=true','_self')
-        return false;
-    })();return false;">Create Room</button><br>
-    <hr>
-    <b>Join Room</b><br>
-    Username <input id="usernameInpt" onchange="(function(){
-        localStorage.setItem('username', document.getElementById('usernameInpt').value)
-        return false;
-    })();return false;" type="text"><br>
-    <script>
-        let name = localStorage.getItem("username")
-        name = name||""
-        document.getElementById("usernameInpt").value = name
-    </script>
-    Room Code <input id="codeinpt" type="text"><button onClick="(function(){
-        window.open(`./game.html?join=${getCode().toUpperCase()}`,'_self')
-        return false;
-    })();return false;" id="joinButton">Join</button>
-    <script>
-        let input = document.getElementById("codeinpt")
-        input.addEventListener("keypress", function(event) {
-  // If the user presses the "Enter" key on the keyboard
-  if (event.key === "Enter") {
-    // Cancel the default action, if needed
-    event.preventDefault();
-    // Trigger the button element with a click
-    document.getElementById("joinButton").click();
-  }
-});
-    </script>
+    <div class="container">
+        <h1>Pico Park Clone</h1>
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Enter your username" maxlength="10">
+        </div>
+        <div class="input-group">
+            <input type="text" id="roomId" placeholder="Enter room code (optional)">
+        </div>
+        <div>
+            <button onclick="host()">Create Room</button>
+            <button onclick="join()">Join Room</button>
+        </div>
+    </div>
 
-    <br><br><a href="./lvl.html">[Level Editor]</a>
+    <script>
+        function host() {
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+            window.location.href = `game.html?host=true&username=${encodeURIComponent(username)}`;
+        }
 
-    <script>function getCode(){return document.getElementById("codeinpt").value}</script>
+        function join() {
+            const username = document.getElementById('username').value.trim();
+            const roomId = document.getElementById('roomId').value.trim().toUpperCase();
+            if (!username || !roomId) {
+                alert('Please enter both username and room code');
+                return;
+            }
+            window.location.href = `game.html?join=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`;
+        }
+
+        // Auto-capitalize room code input
+        document.getElementById('roomId').addEventListener('input', function(e) {
+            this.value = this.value.toUpperCase();
+        });
+    </script>
 </body>
 </html>
