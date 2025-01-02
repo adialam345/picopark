@@ -32,7 +32,7 @@ class Connection {
     this.peer = new Peer(this.vanityId || null, {
       debug: 2
     });
-    
+
     this.peer.connection = this;
 
     this.peer.on("open", function (id) {
@@ -41,7 +41,7 @@ class Connection {
       } else {
         this.connection.lastPeerId = this.id;
       }
-
+      
       if (this.connection.joining) {
         this.connection.join(this.connection.joining);
       }
@@ -53,7 +53,7 @@ class Connection {
     this.peer.on("connection", function (c) {
       this.connection.online = true;
       this.connection.log("Connected to: " + c.peer);
-      
+
       this.connection.conn = c;
       this.connection.conn.connection = this.connection;
       this.connection.e.onConnection();
@@ -189,7 +189,7 @@ class Connection2W {
 
     this.connT2S.initialize(id);
   }
-
+  
   processData(d) {
     try {
       if (!d) return;

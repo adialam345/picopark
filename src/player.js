@@ -303,36 +303,11 @@ class Player {
     }
 
     moveHor(dir, multi=false) {
-        // Adjust speed based on device type and movement type
+        // Standardize movement speed for all devices
         const baseSpeed = 0.75;
-        let speedMultiplier;
+        const speedMultiplier = 2.2; // Use same speed for all devices
         
-        if (window.isMobile) {
-            // Get current time
-            const currentTime = Date.now();
-            
-            // Initialize or update button state
-            if (dir !== this.lastMoveDir) {
-                // Direction changed or new press
-                this.lastMoveTime = currentTime;
-                this.lastMoveDir = dir;
-            }
-            
-            // Calculate hold duration
-            const holdDuration = currentTime - this.lastMoveTime;
-            
-            // Use higher speed if holding, reduced speed for single taps
-            if (holdDuration > 100) {
-                speedMultiplier = 3.8; // Fast movement for hold
-            } else {
-                speedMultiplier = 0.1
-                ; // Shorter steps for taps
-            }
-        } else {
-            speedMultiplier = 2.2; // Normal desktop speed
-        }
-        
-        var speed = baseSpeed * speedMultiplier * this.game.deltaTime;
+        const speed = baseSpeed * speedMultiplier * this.game.deltaTime;
 
         Matter.Body.setPosition(this.body, v(this.body.position.x+(dir*speed),this.body.position.y));
         if (this.testPlayerCollision()) {
@@ -398,16 +373,20 @@ class Player {
         if (this.ready) {
             this.unReady();
         } else if (this.onGround()) {
-            // Increase initial jump velocity for higher jump
-            const jumpVelocity = -2 * str;
+            // Standardize jump mechanics with increased height
+            const jumpVelocity = -15.5; // Increased base jump velocity
+            const jumpMultiplier = 1.2; // Increased jump multiplier
             
-            // Preserve horizontal momentum while jumping
-            const horizontalVelocity = this.body.velocity.x * 1.2; // Slight horizontal boost
-            
-            Matter.Body.setVelocity(this.body, v(horizontalVelocity, jumpVelocity));
-            
-            // Add a small upward force for better jump feel
-            Matter.Body.applyForce(this.body, this.body.position, v(0, -0.05));
+            // Keep horizontal velocity when jumping
+            Matter.Body.setVelocity(this.body, v(
+                this.body.velocity.x,
+                jumpVelocity * jumpMultiplier * str
+            ));
+
+            // Send immediate update if this is a client
+            if (window.clientConnection && !this.onlinePlayer) {
+                window.clientConnection.updateHost();
+            }
         }
     }
 
@@ -418,32 +397,39 @@ class Player {
         Matter.Common.set(this.body, "anglePrev", 0)
         Matter.Common.set(this.body, "angularSpeed", 0)
 
+        // Standardize physics for all players
         Matter.Common.set(this.body, "mass", 1)
+        Matter.Common.set(this.body, "frictionAir", 0.001)
+        
+        // Only update velocity if not receiving updates from host
+        if (!window.clientConnection || this.onlinePlayer) {
+            const currentVelocity = this.body.velocity;
+            Matter.Body.setVelocity(this.body, v(
+                currentVelocity.x,
+                Math.min(currentVelocity.y, 15) // Cap falling speed
+            ));
+        }
+
         Matter.Body.setPosition(this.body, v(
-            this.body.position.x+this.constraintVel.x,
-            this.body.position.y,
+            this.body.position.x + this.constraintVel.x,
+            this.body.position.y
         ))
         this.constraintVel.x *= Math.pow(0.98, this.game.deltaTime)
 
         this.testForShield()
 
-        
-        Matter.Body.setPosition(this.groundDetector, v(this.body.position.x,this.body.position.y+(spriteSize.y*0.5*this.scale)))
-        if (this.laserShields.length>0) {
+        Matter.Body.setPosition(this.groundDetector, v(this.body.position.x, this.body.position.y + (spriteSize.y * 0.5 * this.scale)))
+        if (this.laserShields.length > 0) {
             for (let i = 0; i < this.laserShields.length; i++) {
                 const sh = this.laserShields[i];
-                //console.log(sh)
-                if (sh!=undefined) {
-                    Matter.Body.setPosition(sh, v(this.body.position.x+sh.laserShieldPos.x,this.body.position.y+sh.laserShieldPos.y))
-                    Matter.Body.setVelocity(sh, v(0,0))
+                if (sh != undefined) {
+                    Matter.Body.setPosition(sh, v(this.body.position.x + sh.laserShieldPos.x, this.body.position.y + sh.laserShieldPos.y))
+                    Matter.Body.setVelocity(sh, v(0, 0))
                 }
             }
-            
         }
-        Matter.Body.setVelocity(this.body, v(this.body.velocity.x*0,this.body.velocity.y))
 
         this.lastXPosition = this.body.position.x
-        
     }
     setScale(targetScale) {
         var scaleFactor = targetScale/this.scale
