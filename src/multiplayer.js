@@ -35,13 +35,27 @@ class Connection {
       port: 443,
       path: '/',
       secure: true,
-      debug: 0,
+      debug: 2,
       config: {
         'iceServers': [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-      }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          {
+            urls: 'turn:numb.viagenie.ca',
+            credential: 'muazkh',
+            username: 'webrtc@live.com'
+          }
+        ],
+        'iceCandidatePoolSize': 10,
+        'iceTransportPolicy': 'all'
+      },
+      // Add iOS specific options
+      serialization: "json",
+      reliable: true,
+      metadata: { browser: navigator.userAgent }
     };
 
     try {
@@ -69,6 +83,12 @@ class Connection {
         c.on('error', (err) => {
           console.error("Connection error:", err);
           this.e.onConnectionFail();
+          // Try to reconnect on error
+          setTimeout(() => {
+            if (this.joining) {
+              this.join(this.joining);
+            }
+          }, 2000);
         });
 
         this.e.onConnection();
@@ -80,9 +100,18 @@ class Connection {
         this.online = false;
         this.e.onDisconnection("disconnected");
         
-        setTimeout(() => {
-          console.log("Attempting to reconnect...");
+        // More aggressive reconnection strategy
+        let reconnectAttempts = 0;
+        const maxAttempts = 5;
+        const reconnectInterval = setInterval(() => {
+          if (reconnectAttempts >= maxAttempts) {
+            clearInterval(reconnectInterval);
+            console.log("Max reconnection attempts reached");
+            return;
+          }
+          console.log("Attempting to reconnect...", reconnectAttempts + 1);
           this.peer.reconnect();
+          reconnectAttempts++;
         }, 1000);
       });
 
@@ -91,15 +120,31 @@ class Connection {
         this.conn = null;
         this.online = false;
         this.e.onClose();
+        // Try to reinitialize on close
+        setTimeout(() => {
+          this.initialize(this.joining);
+        }, 2000);
       });
 
       this.peer.on("error", (err) => {
         console.error("Peer error:", err);
         this.online = false;
         this.e.onConnectionFail();
+        
+        // Handle specific iOS WebRTC errors
+        if (err.type === 'network' || err.type === 'peer-unavailable') {
+          setTimeout(() => {
+            console.log("Retrying connection after error...");
+            this.initialize(this.joining);
+          }, 2000);
+        }
       });
     } catch (error) {
       console.error("Error initializing peer:", error);
+      // Retry initialization after error
+      setTimeout(() => {
+        this.initialize(this.joining);
+      }, 2000);
     }
   }
 
@@ -128,12 +173,17 @@ class Connection {
 
     try {
       this.conn = this.peer.connect(peerId, {
-      reliable: true,
-        metadata: { type: 'client' }
+        reliable: true,
+        serialization: "json",
+        metadata: { 
+          type: 'client',
+          browser: navigator.userAgent
+        }
       });
 
       if (!this.conn) {
         console.error("Failed to create connection");
+        setTimeout(() => this.join(id), 2000);
         return;
       }
 
@@ -155,16 +205,22 @@ class Connection {
         console.error("Connection error for peer " + peerId + ":", err);
         this.online = false;
         this.e.onConnectionFail();
+        // Retry connection on error
+        setTimeout(() => this.join(id), 2000);
       });
 
       this.conn.on("close", () => {
         console.log("Connection closed to peer:", peerId);
         this.online = false;
         this.e.onClose();
+        // Retry connection on close
+        setTimeout(() => this.join(id), 2000);
       });
     } catch (error) {
       console.error("Error joining peer " + peerId + ":", error);
       this.e.onConnectionFail();
+      // Retry on error
+      setTimeout(() => this.join(id), 2000);
     }
   }
 

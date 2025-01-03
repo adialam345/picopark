@@ -98,6 +98,27 @@ class Host {
                 if (d.setUsername) {
                     connection.clientUsername = d.setUsername
                     addPlayerToMenu(d.setUsername)
+                    // Broadcast username to all clients
+                    this.broadcast(JSON.stringify({
+                        playerUsername: {
+                            id: connection.player.body.id,
+                            username: d.setUsername
+                        }
+                    }))
+                }
+                if (d.requestUsername) {
+                    // Find the connection with the requested player ID
+                    const targetConn = this.connections.find(conn => 
+                        conn.player && conn.player.body.id === d.requestUsername
+                    )
+                    if (targetConn && targetConn.clientUsername) {
+                        connection.send(JSON.stringify({
+                            playerUsername: {
+                                id: d.requestUsername,
+                                username: targetConn.clientUsername
+                            }
+                        }))
+                    }
                 }
             } catch (e) {
                 console.error('Error processing client data:', e)

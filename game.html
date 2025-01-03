@@ -11,7 +11,7 @@
     <script src="libs/words.js"></script>
 
     <link rel="icon" href="./assets/imgs/favicon.png">
-    <title id="title">Microscopic Natural Area for Public Recreational Activities</title>
+    <title id="title">PicoPark</title>
 
     <style>
         @font-face {
@@ -162,24 +162,52 @@
             justify-content: space-between;
             padding: 0 20px;
             z-index: 1000;
+            touch-action: none;
+            pointer-events: auto;
+        }
+        .movement-controls, .action-controls {
+            display: flex;
+            gap: 10px;
         }
         .mobile-controls button {
             background-color: rgba(76, 175, 80, 0.8);
             color: white;
             border: none;
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
-            font-size: 24px;
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background-color 0.3s, transform 0.2s;
+            transition: transform 0.1s;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+            margin: 0 5px;
         }
         .mobile-controls button:active {
-            background-color: rgba(69, 160, 73, 0.8);
+            background-color: rgba(69, 160, 73, 0.9);
             transform: scale(0.95);
+        }
+        @media (max-width: 480px) {
+            .mobile-controls button {
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+            }
+        }
+        @media (min-width: 768px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+        @media (orientation: portrait) {
+            .mobile-controls {
+                bottom: 40px;
+            }
         }
         .orientation-warning {
             position: fixed;
@@ -199,11 +227,6 @@
         .orientation-warning h2 {
             color: #4CAF50;
             margin-bottom: 1rem;
-        }
-        @media (min-width: 768px) {
-            .mobile-controls {
-                display: none;
-            }
         }
         .member-list {
             background: rgba(0, 0, 0, 0.5);
@@ -276,6 +299,7 @@
             mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name)
             return false;
         })();return false;">Restart Level</a>
+        <span style="margin-left: 10px; color: #4CAF50;">RECODE BY MRXNEXSUS</span>
     </div>
 
     <div id="mobileControls">
@@ -322,18 +346,13 @@
         function checkOrientation() {
             if (isMobile) {
                 const warning = document.getElementById('orientationWarning');
-                const controls = document.getElementById('mobileControls');
-                
                 if (window.innerHeight > window.innerWidth) {
                     warning.style.display = 'block';
-                    controls.style.display = 'none';
-                    controlsVisible = false;
+                    document.getElementById('mobileControls').style.display = 'none';
                 } else {
                     warning.style.display = 'none';
-                    // Only show controls if game is initialized and running
                     if (window.mainGame && window.mainGame.running) {
-                        controls.style.display = 'block';
-                        controlsVisible = true;
+                        document.getElementById('mobileControls').style.display = 'block';
                     }
                 }
             }
@@ -349,11 +368,8 @@
         }
 
         function checkAndShowControls() {
-            // Only check if mainGame exists
-            if (typeof window.mainGame !== 'undefined' && window.mainGame) {
-                if (isMobile && window.mainGame.running && !controlsVisible && window.innerHeight < window.innerWidth) {
-                    showMobileControls();
-                }
+            if (isMobile && window.mainGame && window.mainGame.running) {
+                document.getElementById('mobileControls').style.display = 'block';
             }
         }
 
@@ -441,7 +457,8 @@
     <script src="./src/menu.js"></script>
 
     <div id="menu" class="menu-container">
-        <h1 class="game-title">Microscopic Natural Area for Public Recreational Activities</h1>
+        <h1 class="game-title">PicoPark</h1>
+        <div style="color: #4CAF50; margin-bottom: 15px; font-size: 1.2em;">RECODE BY MRXNEXSUS</div>
         <div id="host" style="display: none;" class="menu-section">
             <div id="gameDetails">
                 <div id="gameCode" class="game-code">Code: <b id="roomCode">fetching</b><span id="incoming"></span></div>
@@ -492,11 +509,21 @@
         }
 
         function startGame() {
-            mainGame.testInit();
-            mainGame.initRender();
-            document.getElementById("menu").style.display = "none";
-            document.getElementById("c").style.display = "";
-            mainGame.running = true;
+            document.getElementById("c").style.display = ""
+            document.getElementById("menu").style.display = "none"
+            document.getElementById("restartLevel").style.display = ""
+            if (!mainGame.matter.running) {
+                startMainGame()
+                // Show mobile controls immediately if on mobile
+                if (isMobile) {
+                    document.getElementById('mobileControls').style.display = 'block';
+                }
+                setInterval(() => {
+                    if (window.hostConnection) hostConnection.broadcast(JSON.stringify({
+                        startGame:true,
+                    }))
+                }, 3000);
+            }
         }
         
         function initGame() {
@@ -578,114 +605,37 @@
             const rightBtn = document.getElementById('rightBtn');
             const jumpBtn = document.getElementById('jumpBtn');
             const downBtn = document.getElementById('downBtn');
-            let isJumping = false;
 
-            // Touch events for left button
-            leftBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowleft'] = true;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowleft', true);
-                    }
-                }
-            });
-
-            leftBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowleft'] = false;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowleft', false);
-                    }
-                }
-            });
-
-            // Touch events for right button
-            rightBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowright'] = true;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowright', true);
-                    }
-                }
-            });
-
-            rightBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowright'] = false;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowright', false);
-                    }
-                }
-            });
-
-            // Touch events for jump button
-            jumpBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running && !isJumping) {
-                    isJumping = true;
-                    window.keys['arrowup'] = true;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowup', true);
-                    }
-                }
-            });
-
-            jumpBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowup'] = false;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowup', false);
-                    }
-                    setTimeout(() => {
-                        isJumping = false;
-                    }, 250);
-                }
-            });
-
-            // Touch events for down button
-            downBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowdown'] = true;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowdown', true);
-                    }
-                }
-            });
-
-            downBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (window.mainGame && window.mainGame.running) {
-                    window.keys['arrowdown'] = false;
-                    if (window.clientConnection) {
-                        window.clientConnection.updateKey('arrowdown', false);
-                    }
-                }
-            });
-
-            // Add touchcancel handlers for safety
-            ['leftBtn', 'rightBtn', 'jumpBtn', 'downBtn'].forEach(btnId => {
-                document.getElementById(btnId).addEventListener('touchcancel', (e) => {
+            function handleButton(btn, key) {
+                btn.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    if (window.mainGame && window.mainGame.running) {
-                        const keyMap = {
-                            'leftBtn': 'arrowleft',
-                            'rightBtn': 'arrowright',
-                            'jumpBtn': 'arrowup',
-                            'downBtn': 'arrowdown'
-                        };
-                        window.keys[keyMap[btnId]] = false;
-                        if (window.clientConnection) {
-                            window.clientConnection.updateKey(keyMap[btnId], false);
-                        }
+                    window.keys[key] = true;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey(key, true);
                     }
-                });
-            });
+                }, { passive: false });
+
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    window.keys[key] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey(key, false);
+                    }
+                }, { passive: false });
+
+                btn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    window.keys[key] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey(key, false);
+                    }
+                }, { passive: false });
+            }
+
+            handleButton(leftBtn, 'arrowleft');
+            handleButton(rightBtn, 'arrowright');
+            handleButton(jumpBtn, 'arrowup');
+            handleButton(downBtn, 'arrowdown');
 
             // Prevent default touch behaviors
             document.addEventListener('touchmove', (e) => {
