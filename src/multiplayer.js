@@ -43,7 +43,7 @@ class Connection {
     // Create own peer object with connection to shared PeerJS server
     const peerConfig = {
       debug: 2,
-      host: '9dbd837dd33c.ngrok-free.app',
+      host: 'df7325366ee4.ngrok-free.app ',
       port: 443,
       path: '/myapp',
       secure: true,
