@@ -43,6 +43,9 @@ class Connection {
     // Create own peer object with connection to shared PeerJS server
     const peerConfig = {
       debug: 2,
+      host: '8.219.70.161',
+      port: 9000,
+      path: '/myapp',
       config: {
         'iceServers': [
           { urls: 'stun:stun.l.google.com:19302' }
