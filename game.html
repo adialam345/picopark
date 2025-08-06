@@ -64,6 +64,11 @@
             bottom: 20px;
             right: 20px;
         }
+        #downBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 100px;
+        }
         #orientationWarning {
             display: none;
             position: fixed;
@@ -98,6 +103,7 @@
         <button id="leftBtn" class="control-button">←</button>
         <button id="rightBtn" class="control-button">→</button>
         <button id="jumpBtn" class="control-button">↑</button>
+        <button id="downBtn" class="control-button">↓</button>
     </div>
 
     <script>
@@ -379,6 +385,7 @@
             const leftBtn = document.getElementById('leftBtn');
             const rightBtn = document.getElementById('rightBtn');
             const jumpBtn = document.getElementById('jumpBtn');
+            const downBtn = document.getElementById('downBtn');
             let isJumping = false;
 
             // Touch events for left button
@@ -449,15 +456,37 @@
                 }
             });
 
+            // Touch events for down button (door entry)
+            downBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    window.keys['arrowdown'] = true;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowdown', true);
+                    }
+                }
+            });
+
+            downBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (window.mainGame && window.mainGame.running) {
+                    window.keys['arrowdown'] = false;
+                    if (window.clientConnection) {
+                        window.clientConnection.updateKey('arrowdown', false);
+                    }
+                }
+            });
+
             // Add touchcancel handlers for safety
-            ['leftBtn', 'rightBtn', 'jumpBtn'].forEach(btnId => {
+            ['leftBtn', 'rightBtn', 'jumpBtn', 'downBtn'].forEach(btnId => {
                 document.getElementById(btnId).addEventListener('touchcancel', (e) => {
                     e.preventDefault();
                     if (window.mainGame && window.mainGame.running) {
                         const keyMap = {
                             'leftBtn': 'arrowleft',
                             'rightBtn': 'arrowright',
-                            'jumpBtn': 'arrowup'
+                            'jumpBtn': 'arrowup',
+                            'downBtn': 'arrowdown'
                         };
                         window.keys[keyMap[btnId]] = false;
                         if (window.clientConnection) {
